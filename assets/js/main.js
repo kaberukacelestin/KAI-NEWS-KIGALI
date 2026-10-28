@@ -93,15 +93,57 @@ document.querySelectorAll('a[href^="#"]').forEach(a => {
       const observer = new IntersectionObserver(function(entries) {
         entries.forEach(function(entry) {
           if (entry.isIntersecting) {
-            entry.target.classList.add('ad-visible', 'animated');
-            observer.unobserve(entry.target); // play once
+            const el = entry.target;
+            el.classList.add('ad-visible');
+            // If ad is marked noncontinuous, play now and schedule repeats
+            if (el.dataset && el.dataset.noncontinuous == '1') {
+              playAdAnimation(el);
+            } else {
+              // otherwise play once
+              el.classList.add('animated');
+            }
+            observer.unobserve(entry.target);
           }
         });
       }, { threshold: 0.15 });
       ads.forEach(function(ad) { observer.observe(ad); });
     } else {
-      // Fallback: show all immediately
-      ads.forEach(function(ad) { ad.classList.add('ad-visible'); });
+      // Fallback: show all immediately and start animations
+      ads.forEach(function(ad) { ad.classList.add('ad-visible'); if (ad.dataset && ad.dataset.noncontinuous == '1') playAdAnimation(ad); else ad.classList.add('animated'); });
+    }
+
+    function playAdAnimation(el) {
+      // If an interval is already set, don't create another
+      if (el.__adAnimInterval) return;
+      const baseDelay = parseInt(el.dataset.animInterval) || 12; // seconds
+      const run = function() {
+        // trigger animation by toggling 'animated'
+        el.classList.remove('animated');
+        // force reflow so animation restarts
+        void el.offsetWidth;
+        el.classList.add('animated');
+        // after animation completes, remove 'animated' so next toggle will replay it
+        const computed = window.getComputedStyle(el);
+        // try to read animation-duration (may be like "1.5s")
+        let adur = 1500;
+        try {
+          const ad = computed.animationDuration || computed.getPropertyValue('animation-duration');
+          if (ad) {
+            // takes first duration if multiple
+            adur = Math.round(parseFloat(ad.split(',')[0]) * 1000);
+          }
+        } catch (e) {}
+        setTimeout(function() { el.classList.remove('animated'); }, adur + 60);
+      };
+
+      // initial run immediately
+      run();
+      // schedule repeats at baseDelay +/- 30%
+      const jitter = Math.max(4, Math.round(baseDelay * 0.3));
+      el.__adAnimInterval = setInterval(function() {
+        const nextDelay = baseDelay * 1000 + (Math.floor(Math.random() * (jitter*2)) - jitter) * 1000;
+        setTimeout(run, 0);
+      }, (baseDelay + jitter) * 1000);
     }
   }
 

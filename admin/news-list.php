@@ -82,7 +82,7 @@ adminHeader("All News");
       <?php foreach ($news as $n): ?>
       <tr>
         <td><?= $n['id'] ?></td>
-        <td><img src="<?= UPLOAD_URL . e($n['thumbnail']) ?>" class="table-thumb" alt=""></td>
+        <td><img src="<?= e(newsThumbnail($n['thumbnail'])) ?>" class="table-thumb" alt=""></td>
         <td><?= e(mb_substr($n['title_rw'],0,55)) ?><?= mb_strlen($n['title_rw'])>55?'...':'' ?></td>
         <td><?= e($n['cat_name']) ?></td>
         <td><?= $n['is_headline'] ? '⭐' : '' ?></td>

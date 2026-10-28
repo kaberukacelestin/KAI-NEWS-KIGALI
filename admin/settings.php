@@ -18,7 +18,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $fields = [
       'site_name', 'site_tagline', 'site_email', 'site_phone',
       'site_address', 'facebook_url', 'X_url', 'instagram_url',
-      'youtube_url', 'online_radio_url', 'live_event_url', 'live_event_time', 'live_event_title', 'live_event_button_text', 'live_event_description',
+      'youtube_url', 'online_radio_url', 'live_event_url', 'live_event_time', 'live_event_title', 'live_event_button_text', 'live_event_description', 'homepage_video_links',
       'ad_video_url', 'ad_video_file', 'ad_video_title', 'ad_video_button_text', 'ad_video_description', 'whatsapp_number',
       'breaking_news', 'footer_text'
     ];
@@ -200,6 +200,12 @@ adminHeader("Settings / Igenamiterere");
       <img src="<?= UPLOAD_URL . e(s('live_event_thumbnail')) ?>" alt="Live event thumbnail" style="max-width:240px;border-radius:10px;border:1px solid #dde3ed;">
       <?php endif; ?>
     </div>
+  </div>
+
+  <div class="form-group">
+    <label><i class="fa fa-film" style="color:#0d1f3c"></i> KAI NEWS KIGALI TV Videos</label>
+    <textarea name="homepage_video_links" rows="5" placeholder="Optional title | https://www.youtube.com/watch?v=VIDEO_ID\nAnother video title | https://youtu.be/VIDEO_ID\nhttps://www.youtube.com/watch?v=OTHER_ID"><?= s('homepage_video_links') ?></textarea>
+    <p style="font-size:0.9rem;color:var(--muted);margin-top:6px;">Add one video per line as <code>News title | video URL</code>. YouTube, Vimeo, Dailymotion, TikTok, Instagram, and Facebook video links use their embedded players. Direct MP4, WEBM, OGG, and MOV URLs also play here. Other links are opened inside the player when the website permits embedding; some sites block this, so use a direct video URL or official embed link if needed. Add a title for non-YouTube links.</p>
   </div>
 
   <div class="form-row">

@@ -23,6 +23,7 @@ $news = db()->query(
   . " WHERE n.status='published' AND " . languageContentFilter('n') . " AND n.category_id=$cat_id"
   . " ORDER BY n.created_at DESC LIMIT $per_page OFFSET $offset"
 )->fetch_all(MYSQLI_ASSOC);
+$show_views = canSeeViews();
 ?>
 <!DOCTYPE html>
 <html lang="<?= $LANG ?>">
@@ -56,7 +57,9 @@ $news = db()->query(
           <p class="card-excerpt"><?= e(mb_substr(strip_tags(t($n,'description',$LANG)),0,110)) ?>...</p>
           <div class="card-meta">
             <span><i class="fa fa-clock"></i> <?= date('d M Y', strtotime($n['created_at'])) ?></span>
+            <?php if ($show_views): ?>
             <span><i class="fa fa-eye"></i> <?= number_format($n['views']) ?></span>
+            <?php endif; ?>
           </div>
         </div>
       </article>

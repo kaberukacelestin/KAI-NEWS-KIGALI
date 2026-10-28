@@ -28,6 +28,10 @@ function db() {
 // ---- Helpers ----
 function e($s) { return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8'); }
 
+function canSeeViews(): bool {
+    return isset($_SESSION['admin_id']) && in_array($_SESSION['admin_role'] ?? '', ['superadmin','journalist'], true);
+}
+
 function newsThumbnail($path) {
     $default = SITE_URL . '/assets/images/default-thumbnail.svg';
     $normalized = preg_replace('#^/?uploads/#', '', $path);

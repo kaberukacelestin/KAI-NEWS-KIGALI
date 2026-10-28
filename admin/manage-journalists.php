@@ -37,11 +37,10 @@ if (isset($_GET['reject'])) {
 // Deactivate / reactivate journalist account
 if (isset($_GET['toggle'])) {
     $aid = intval($_GET['toggle']);
-    // We use a simple approach: change role between journalist and 'suspended'
     $cur = db()->query("SELECT role FROM admins WHERE id=$aid")->fetch_assoc();
-    if ($cur) {
-        $new_role = ($cur['role'] === 'journalist') ? 'suspended' : 'journalist';
-        db()->query("UPDATE admins SET role='$new_role' WHERE id=$aid");
+    if ($cur && in_array($cur['role'], ['journalist','suspended'], true)) {
+        $new_role = ($cur['role'] === 'suspended') ? 'journalist' : 'suspended';
+        db()->query("UPDATE admins SET role='$new_role' WHERE id=$aid AND role!='superadmin'");
         $msg = "Account status updated.";
     }
 }
@@ -49,8 +48,21 @@ if (isset($_GET['toggle'])) {
 // Delete journalist account
 if (isset($_GET['delete_account'])) {
     $aid = intval($_GET['delete_account']);
-    db()->query("DELETE FROM admins WHERE id=$aid AND role IN ('journalist','suspended')");
+    db()->query("DELETE FROM admins WHERE id=$aid AND role IN ('journalist','editor','notifier','suspended')");
     $msg = "Account deleted.";
+}
+
+// Update account role
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_role'])) {
+    $aid = intval($_POST['admin_id']);
+    $new_role = $_POST['new_role'] ?? 'journalist';
+    $allowed_roles = ['journalist','editor','notifier','suspended'];
+    if (in_array($new_role, $allowed_roles, true)) {
+        db()->query("UPDATE admins SET role='$new_role' WHERE id=$aid AND role!='superadmin'");
+        $msg = "Role updated successfully.";
+    } else {
+        $msg = "Invalid role selected.";
+    }
 }
 
 // Add new journalist manually
@@ -59,6 +71,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_journalist'])) {
     $username = trim($_POST['username'] ?? '');
     $email = trim($_POST['email'] ?? '');
     $password = $_POST['password'] ?? '';
+    $role = $_POST['role'] ?? 'journalist';
+    $allowed_roles = ['journalist','editor','notifier'];
+    if (!in_array($role, $allowed_roles, true)) {
+        $role = 'journalist';
+    }
     
     if ($full_name && $username && $email && $password) {
         // Check if username or email already exists
@@ -67,10 +84,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_journalist'])) {
             $msg = "❌ Username or email already exists.";
         } else {
             $hashed_password = password_hash($password, PASSWORD_BCRYPT);
-            $stmt = db()->prepare("INSERT INTO admins (username, email, password, full_name, role) VALUES (?,?,?,?,'journalist')");
-            $stmt->bind_param("ssss", $username, $email, $hashed_password, $full_name);
+            $stmt = db()->prepare("INSERT INTO admins (username, email, password, full_name, role) VALUES (?,?,?,?,?)");
+            $stmt->bind_param("sssss", $username, $email, $hashed_password, $full_name, $role);
             if ($stmt->execute()) {
-                $msg = "✅ New journalist <strong>" . htmlspecialchars($full_name) . "</strong> created successfully.";
+                $msg = "✅ New admin account for <strong>" . htmlspecialchars($full_name) . "</strong> created successfully with role " . ucfirst($role) . ".";
             }
         }
     } else {
@@ -82,17 +99,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_journalist'])) {
 $pending = db()->query("SELECT * FROM journalist_requests WHERE status='pending' ORDER BY created_at DESC")->fetch_all(MYSQLI_ASSOC);
 $history = db()->query("SELECT * FROM journalist_requests WHERE status != 'pending' ORDER BY created_at DESC LIMIT 20")->fetch_all(MYSQLI_ASSOC);
 
-// Fetch journalist accounts
-$journalists = db()->query("SELECT * FROM admins WHERE role IN ('journalist','suspended') ORDER BY created_at DESC")->fetch_all(MYSQLI_ASSOC);
+// Fetch admin accounts (excluding superadmin)
+$journalists = db()->query("SELECT * FROM admins WHERE role != 'superadmin' ORDER BY created_at DESC")->fetch_all(MYSQLI_ASSOC);
 
-adminHeader("Manage Journalists");
+adminHeader("Manage Admin Accounts");
 ?>
 <div class="admin-section">
 
 <?php if ($msg): ?><div class="alert alert-success"><?= $msg ?></div><?php endif; ?>
 
-<!-- ADD NEW JOURNALIST MANUALLY -->
-<h3 style="margin-top:0"><i class="fa fa-plus-circle" style="color:#3498db"></i> Add New Journalist Manually</h3>
+<!-- ADD NEW ADMIN ACCOUNT -->
+<h3 style="margin-top:0"><i class="fa fa-plus-circle" style="color:#3498db"></i> Add New Admin Account</h3>
 <form method="POST" style="max-width:600px; background:#f9f9f9; padding:20px; border-radius:8px; margin-bottom:30px;">
   <div style="display:grid; grid-template-columns:1fr 1fr; gap:15px;">
     <div>
@@ -106,6 +123,14 @@ adminHeader("Manage Journalists");
     <div>
       <label style="display:block; font-weight:600; margin-bottom:5px;">Email *</label>
       <input type="email" name="email" required placeholder="Enter email" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:4px; font-family:inherit;">
+    </div>
+    <div>
+      <label style="display:block; font-weight:600; margin-bottom:5px;">Role *</label>
+      <select name="role" required style="width:100%; padding:10px; border:1px solid #ddd; border-radius:4px; font-family:inherit;">
+        <option value="journalist">Journalist</option>
+        <option value="editor">General Editor</option>
+        <option value="notifier">Notification Admin</option>
+      </select>
     </div>
     <div>
       <label style="display:block; font-weight:600; margin-bottom:5px;">Password *</label>
@@ -148,14 +173,14 @@ adminHeader("Manage Journalists");
 
 <hr style="margin:30px 0">
 
-<!-- ACTIVE JOURNALIST ACCOUNTS -->
-<h3><i class="fa fa-users" style="color:#27ae60"></i> Journalist Accounts (<?= count($journalists) ?>)</h3>
+<!-- ACTIVE ADMIN ACCOUNTS -->
+<h3><i class="fa fa-users" style="color:#27ae60"></i> Admin Accounts (<?= count($journalists) ?>)</h3>
 
 <?php if (empty($journalists)): ?>
-  <p style="color:#999;padding:20px 0">No journalist accounts yet.</p>
+  <p style="color:#999;padding:20px 0">No admin accounts yet.</p>
 <?php else: ?>
 <table class="admin-table">
-  <thead><tr><th>Photo</th><th>Name</th><th>Username</th><th>Email</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead>
+  <thead><tr><th>Photo</th><th>Name</th><th>Username</th><th>Email</th><th>Role</th><th>Created</th><th>Actions</th></tr></thead>
   <tbody>
   <?php foreach ($journalists as $j): ?>
   <tr>
@@ -163,15 +188,25 @@ adminHeader("Manage Journalists");
     <td><?= e($j['full_name']) ?></td>
     <td><code><?= e($j['username']) ?></code></td>
     <td><?= e($j['email']) ?></td>
-    <td><span class="badge <?= $j['role']==='journalist'?'published':'draft' ?>">
-      <?= $j['role']==='journalist' ? '✅ Active' : '⛔ Suspended' ?>
-    </span></td>
-    <td><?= date('d/m/Y', strtotime($j['created_at'])) ?></td>
     <td>
+      <form method="POST" style="display:flex; gap:8px; align-items:center; margin:0;">
+        <input type="hidden" name="admin_id" value="<?= $j['id'] ?>">
+        <select name="new_role" style="padding:8px 10px; border:1px solid #ddd; border-radius:4px; font-family:inherit;">
+          <?php foreach (['journalist'=>'Journalist','editor'=>'General Editor','notifier'=>'Notification Admin','suspended'=>'Suspended'] as $role_key => $role_label): ?>
+            <option value="<?= $role_key ?>" <?= $j['role'] === $role_key ? 'selected' : '' ?>><?= $role_label ?></option>
+          <?php endforeach; ?>
+        </select>
+        <button type="submit" name="update_role" class="btn-sm edit" style="padding:7px 10px;">Save</button>
+      </form>
+    </td>
+    <td><?= date('d/m/Y', strtotime($j['created_at'])) ?></td>
+    <td style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+      <?php if (in_array($j['role'], ['journalist','suspended'], true)): ?>
       <a href="?toggle=<?= $j['id'] ?>" class="btn-sm edit">
-        <i class="fa fa-<?= $j['role']==='journalist'?'ban':'check' ?>"></i>
-        <?= $j['role']==='journalist'?'Suspend':'Reactivate' ?>
+        <i class="fa fa-<?= $j['role']==='suspended'?'check':'ban' ?>"></i>
+        <?= $j['role']==='suspended'?'Reactivate':'Suspend' ?>
       </a>
+      <?php endif; ?>
       <a href="?delete_account=<?= $j['id'] ?>" class="btn-sm del" onclick="return confirm('Delete this account permanently?')"><i class="fa fa-trash"></i></a>
     </td>
   </tr>

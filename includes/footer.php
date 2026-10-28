@@ -53,3 +53,21 @@
     </div>
   </div>
 </footer>
+<script>
+document.addEventListener('click', function(e){
+  var btn = e.target.closest && e.target.closest('.ad-fullscreen-btn');
+  if (!btn) return;
+  var wrapper = btn.closest('.ad-video-wrapper');
+  if (!wrapper) return;
+  // prefer iframe or video
+  var el = wrapper.querySelector('iframe') || wrapper.querySelector('video') || wrapper;
+  if (!el) return;
+  function goFull(el){
+    if (el.requestFullscreen) return el.requestFullscreen();
+    if (el.webkitRequestFullscreen) return el.webkitRequestFullscreen();
+    if (el.mozRequestFullScreen) return el.mozRequestFullScreen();
+    if (el.msRequestFullscreen) return el.msRequestFullscreen();
+  }
+  goFull(el).catch(function(){});
+});
+</script>

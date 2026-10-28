@@ -54,7 +54,7 @@ adminHeader("Dashboard");
     <tbody>
       <?php foreach ($recent as $r): ?>
       <tr>
-        <td><img src="<?= UPLOAD_URL . e($r['thumbnail']) ?>" class="table-thumb" alt=""></td>
+        <td><img src="<?= e(newsThumbnail($r['thumbnail'])) ?>" class="table-thumb" alt=""></td>
         <td><?= e(mb_substr($r['title_rw'],0,60)) ?><?= strlen($r['title_rw'])>60?'...':'' ?></td>
         <td><?= e($r['cat_name']) ?></td>
         <td><?= number_format($r['views']) ?></td>

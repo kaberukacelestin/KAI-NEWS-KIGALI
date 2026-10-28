@@ -1,5 +1,7 @@
 <?php
 require_once 'auth.php';
+require_once '../includes/article-references.php';
+ensureArticleReferencesColumn();
 requirePermission('edit_news');
 
 $id = intval($_GET['id'] ?? 0);
@@ -17,6 +19,10 @@ if ($admin_role === 'journalist' && $article['admin_id'] != $admin_id) {
 $gallery = db()->query("SELECT * FROM news_gallery WHERE news_id=$id ORDER BY sort_order")->fetch_all(MYSQLI_ASSOC);
 $categories = getCategories();
 $success = $error = '';
+$referenceFormRows = decodeArticleReferences($article['article_references'] ?? null);
+if (!$referenceFormRows) {
+    $referenceFormRows = [['title' => '', 'url' => '']];
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $cat_id      = intval($_POST['category_id']);
@@ -31,9 +37,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $is_headline = isset($_POST['is_headline']) ? 1 : 0;
     $is_featured = isset($_POST['is_featured']) ? 1 : 0;
     $status      = $_POST['status'] ?? 'published';
+    $referenceTitles = is_array($_POST['reference_titles'] ?? null) ? $_POST['reference_titles'] : [];
+    $referenceUrls = is_array($_POST['reference_urls'] ?? null) ? $_POST['reference_urls'] : [];
+    $referenceFormRows = [];
+    for ($i = 0, $count = max(count($referenceTitles), count($referenceUrls)); $i < $count; $i++) {
+        $referenceFormRows[] = [
+            'title' => is_scalar($referenceTitles[$i] ?? null) ? (string)$referenceTitles[$i] : '',
+            'url' => is_scalar($referenceUrls[$i] ?? null) ? (string)$referenceUrls[$i] : '',
+        ];
+    }
+    if (!$referenceFormRows) {
+        $referenceFormRows[] = ['title' => '', 'url' => ''];
+    }
+    $referenceError = null;
+    $articleReferences = validateArticleReferences($referenceTitles, $referenceUrls, $referenceError);
 
     if (!$title_rw || !$desc_rw || !$cat_id) {
         $error = "Kinyarwanda title and description are required.";
+    } elseif ($articleReferences === null) {
+        $error = $referenceError;
     } else {
         $thumb_db = $article['thumbnail'];
 
@@ -100,17 +122,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
         $inline_json = !empty($inline_images) ? json_encode($inline_images) : null;
+        $references_json = !empty($articleReferences) ? json_encode($articleReferences) : null;
 
         $stmt = db()->prepare("UPDATE news SET
             category_id=?, title_rw=?, description_rw=?, title_en=?, description_en=?,
             title_sw=?, description_sw=?, title_fr=?, description_fr=?,
-            thumbnail=?, inline_images=?, is_headline=?, is_featured=?, status=?
+            thumbnail=?, inline_images=?, is_headline=?, is_featured=?, status=?, article_references=?
             WHERE id=?");
-        $stmt->bind_param("issssssssssiisi",
+        $stmt->bind_param("issssssssssiissi",
             $cat_id,
             $title_rw, $desc_rw, $title_en, $desc_en,
             $title_sw, $desc_sw, $title_fr, $desc_fr,
-            $thumb_db, $inline_json, $is_headline, $is_featured, $status,
+            $thumb_db, $inline_json, $is_headline, $is_featured, $status, $references_json,
             $id
         );
 
@@ -232,6 +255,28 @@ adminHeader("Edit News / Hindura Inkuru");
     </div>
   </div>
 
+  <div class="form-group article-references-form">
+    <label>References / Related Links <small>(optional)</small></label>
+    <p class="form-hint">Add links related to this article, such as a source, YouTube video, or social media post.</p>
+    <div class="article-reference-list">
+      <?php foreach ($referenceFormRows as $reference): ?>
+      <div class="article-reference-row">
+        <input type="text" name="reference_titles[]" value="<?= e($reference['title'] ?? '') ?>" maxlength="200" placeholder="Link title (for example: Original interview)">
+        <input type="url" name="reference_urls[]" value="<?= e($reference['url'] ?? '') ?>" maxlength="2048" placeholder="https://..." inputmode="url">
+        <button type="button" class="article-reference-remove" aria-label="Remove link"><i class="fa fa-trash" aria-hidden="true"></i></button>
+      </div>
+      <?php endforeach; ?>
+    </div>
+    <button type="button" class="btn-sm edit article-reference-add"><i class="fa fa-plus"></i> Add link</button>
+    <template class="article-reference-template">
+      <div class="article-reference-row">
+        <input type="text" name="reference_titles[]" maxlength="200" placeholder="Link title (for example: Original interview)">
+        <input type="url" name="reference_urls[]" maxlength="2048" placeholder="https://..." inputmode="url">
+        <button type="button" class="article-reference-remove" aria-label="Remove link"><i class="fa fa-trash" aria-hidden="true"></i></button>
+      </div>
+    </template>
+  </div>
+
   <div class="form-row">
     <div class="form-group">
       <label>Icyiciro / Category <span class="required-mark">*</span></label>
@@ -267,9 +312,7 @@ adminHeader("Edit News / Hindura Inkuru");
   <!-- Current Thumbnail -->
   <div class="form-group">
     <label>Current Thumbnail</label>
-    <?php if ($article['thumbnail']): ?>
-    <img src="<?= UPLOAD_URL . e($article['thumbnail']) ?>" style="max-height:160px;border-radius:8px;margin-bottom:10px;display:block;">
-    <?php endif; ?>
+    <img src="<?= e(newsThumbnail($article['thumbnail'])) ?>" style="max-height:160px;border-radius:8px;margin-bottom:10px;display:block;">
     <label>Replace Thumbnail (leave empty to keep current)</label>
     <div class="upload-zone" id="thumbZone">
       <i class="fa fa-cloud-upload-alt"></i>
@@ -419,4 +462,5 @@ document.getElementById('galleryInput').addEventListener('change', function() {
 });
 </script>
 <script src="../assets/js/admin.js"></script>
+<script src="../assets/js/article-references.js"></script>
 <?php adminFooter(); ?>

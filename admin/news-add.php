@@ -1,9 +1,12 @@
 <?php
 require_once 'auth.php';
+require_once '../includes/article-references.php';
+ensureArticleReferencesColumn();
 requirePermission('add_news');
 
 $success = $error = '';
 $categories = getCategories();
+$referenceFormRows = [['title' => '', 'url' => '']];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $cat_id      = intval($_POST['category_id']);
@@ -18,9 +21,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $is_headline = isset($_POST['is_headline']) ? 1 : 0;
     $is_featured = isset($_POST['is_featured']) ? 1 : 0;
     $status      = $_POST['status'] ?? 'published';
+    $referenceTitles = is_array($_POST['reference_titles'] ?? null) ? $_POST['reference_titles'] : [];
+    $referenceUrls = is_array($_POST['reference_urls'] ?? null) ? $_POST['reference_urls'] : [];
+    $referenceFormRows = [];
+    for ($i = 0, $count = max(count($referenceTitles), count($referenceUrls)); $i < $count; $i++) {
+        $referenceFormRows[] = [
+            'title' => is_scalar($referenceTitles[$i] ?? null) ? (string)$referenceTitles[$i] : '',
+            'url' => is_scalar($referenceUrls[$i] ?? null) ? (string)$referenceUrls[$i] : '',
+        ];
+    }
+    if (!$referenceFormRows) {
+        $referenceFormRows[] = ['title' => '', 'url' => ''];
+    }
+    $referenceError = null;
+    $articleReferences = validateArticleReferences($referenceTitles, $referenceUrls, $referenceError);
 
     if (!$title_rw || !$desc_rw || !$cat_id) {
         $error = "Kinyarwanda title and description are required.";
+    } elseif ($articleReferences === null) {
+        $error = $referenceError;
     } elseif (empty($_FILES['thumbnail']['name'])) {
         $error = "Thumbnail image is required.";
     } else {
@@ -61,21 +80,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 }
                 $inline_json = !empty($inline_images) ? json_encode($inline_images) : null;
+                $references_json = !empty($articleReferences) ? json_encode($articleReferences) : null;
 
                 $stmt = db()->prepare("INSERT INTO news
                     (category_id, admin_id, title_rw, description_rw, title_en, description_en,
                      title_sw, description_sw, title_fr, description_fr,
-                     thumbnail, inline_images, is_headline, is_featured, status)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
-                $stmt->bind_param("iissssssssssiis",
+                     thumbnail, inline_images, is_headline, is_featured, status, article_references)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
+                $stmt->bind_param("iissssssssssiiss",
                     $cat_id, $admin_id,
                     $title_rw, $desc_rw, $title_en, $desc_en,
                     $title_sw, $desc_sw, $title_fr, $desc_fr,
-                    $thumb_db, $inline_json, $is_headline, $is_featured, $status
+                    $thumb_db, $inline_json, $is_headline, $is_featured, $status, $references_json
                 );
 
                 if ($stmt->execute()) {
                     $news_id = db()->insert_id;
+
+                    if ($admin_role === 'journalist') {
+                        $notifyRecipients = db()->query("SELECT id FROM admins WHERE role='notifier'")->fetch_all(MYSQLI_ASSOC);
+                        foreach ($notifyRecipients as $recipient) {
+                            createNotification(
+                                $recipient['id'],
+                                'news_published',
+                                'New article added by journalist',
+                                'A journalist has submitted a new article. Review it in the dashboard.',
+                                $admin_id,
+                                $news_id
+                            );
+                        }
+                    }
 
                     // Gallery images
                     if (!empty($_FILES['gallery']['name'][0])) {
@@ -173,6 +207,28 @@ adminHeader("Add News / Ongera Amakuru");
       <label>Description (Français)</label>
       <textarea name="description_fr" id="desc_fr" rows="10" placeholder="Rédigez l'article en français..."><?= e($_POST['description_fr']??'') ?></textarea>
     </div>
+  </div>
+
+  <div class="form-group article-references-form">
+    <label>References / Related Links <small>(optional)</small></label>
+    <p class="form-hint">Add links related to this article, such as a source, YouTube video, or social media post.</p>
+    <div class="article-reference-list">
+      <?php foreach ($referenceFormRows as $reference): ?>
+      <div class="article-reference-row">
+        <input type="text" name="reference_titles[]" value="<?= e($reference['title']) ?>" maxlength="200" placeholder="Link title (for example: Original interview)">
+        <input type="url" name="reference_urls[]" value="<?= e($reference['url']) ?>" maxlength="2048" placeholder="https://..." inputmode="url">
+        <button type="button" class="article-reference-remove" aria-label="Remove link"><i class="fa fa-trash" aria-hidden="true"></i></button>
+      </div>
+      <?php endforeach; ?>
+    </div>
+    <button type="button" class="btn-sm edit article-reference-add"><i class="fa fa-plus"></i> Add link</button>
+    <template class="article-reference-template">
+      <div class="article-reference-row">
+        <input type="text" name="reference_titles[]" maxlength="200" placeholder="Link title (for example: Original interview)">
+        <input type="url" name="reference_urls[]" maxlength="2048" placeholder="https://..." inputmode="url">
+        <button type="button" class="article-reference-remove" aria-label="Remove link"><i class="fa fa-trash" aria-hidden="true"></i></button>
+      </div>
+    </template>
   </div>
 
   <div class="form-row">
@@ -344,4 +400,5 @@ document.getElementById('galleryInput').addEventListener('change', function() {
 </script>
 
 <script src="../assets/js/admin.js"></script>
+<script src="../assets/js/article-references.js"></script>
 <?php adminFooter(); ?>

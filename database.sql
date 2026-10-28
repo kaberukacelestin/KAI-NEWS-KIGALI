@@ -3,8 +3,8 @@
 -- Database: kai_news_kigali
 -- ============================================
 
-CREATE DATABASE IF NOT EXISTS `kai_news_kigali` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE `kai_news_kigali`;
+--CREATE DATABASE IF NOT EXISTS `kai_news_kigali` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+--USE `kai_news_kigali`;
 
 -- ============================================
 -- ADMIN USERS TABLE
@@ -16,7 +16,7 @@ CREATE TABLE `admins` (
   `password` VARCHAR(255) NOT NULL,
   `full_name` VARCHAR(200),
   `profile_picture` VARCHAR(500) DEFAULT NULL,
-  `role` ENUM('superadmin','editor','journalist') DEFAULT 'journalist',
+  `role` ENUM('superadmin','editor','journalist','notifier','suspended') DEFAULT 'journalist',
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
@@ -69,6 +69,7 @@ CREATE TABLE `news` (
 
   `thumbnail` VARCHAR(500) NOT NULL,
   `inline_images` JSON DEFAULT NULL,
+  `article_references` JSON DEFAULT NULL,
   `is_headline` TINYINT(1) DEFAULT 0,
   `is_featured` TINYINT(1) DEFAULT 0,
   `status` ENUM('published','draft') DEFAULT 'published',
@@ -79,6 +80,34 @@ CREATE TABLE `news` (
   FOREIGN KEY (`category_id`) REFERENCES `categories`(`id`),
   FOREIGN KEY (`admin_id`) REFERENCES `admins`(`id`)
 ) ENGINE=InnoDB;
+
+-- ============================================
+-- AI NEWS SOURCE QUEUE (all generated articles remain drafts)
+-- ============================================
+CREATE TABLE `ai_news_items` (
+  `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `fingerprint` CHAR(64) NOT NULL UNIQUE,
+  `location_label` VARCHAR(120) NOT NULL,
+  `feed_label` VARCHAR(160) NOT NULL,
+  `source_name` VARCHAR(200) NOT NULL,
+  `source_title` VARCHAR(500) NOT NULL,
+  `source_excerpt` TEXT,
+  `source_url` VARCHAR(2048) NOT NULL,
+  `source_published_at` DATETIME DEFAULT NULL,
+  `title_rw` VARCHAR(500) DEFAULT NULL,
+  `description_rw` LONGTEXT DEFAULT NULL,
+  `title_en` VARCHAR(500) DEFAULT NULL,
+  `description_en` LONGTEXT DEFAULT NULL,
+  `category_id` INT DEFAULT NULL,
+  `news_id` INT DEFAULT NULL,
+  `status` ENUM('new','ready','drafted','ignored') NOT NULL DEFAULT 'new',
+  `error_message` VARCHAR(500) DEFAULT NULL,
+  `first_seen_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `last_seen_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `drafted_at` DATETIME DEFAULT NULL,
+  INDEX `idx_ai_news_status_published` (`status`, `source_published_at`),
+  INDEX `idx_ai_news_news_id` (`news_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================
 -- NEWS GALLERY
@@ -102,7 +131,7 @@ CREATE TABLE `advertisements` (
   `image` VARCHAR(500) NOT NULL,
   `video` VARCHAR(500) DEFAULT NULL,
   `link_url` VARCHAR(500),
-  `position` ENUM('banner_top','banner_mid','sidebar','footer','popup') DEFAULT 'banner_top',
+  `position` ENUM('banner_top','banner_top_photo_1','banner_top_photo_2','banner_top_photo_3','banner_top_photo_4','banner_mid','sidebar','footer','popup') DEFAULT 'banner_top',
   `is_active` TINYINT(1) DEFAULT 1,
   `is_animated` TINYINT(1) DEFAULT 0,
   `animation_type` ENUM('slide','fade','bounce','pulse','zoom','flip') DEFAULT 'fade',

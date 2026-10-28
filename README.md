@@ -7,6 +7,7 @@ A multilingual news media website built with PHP, MySQL, and a lightweight custo
 This project supports:
 - multilingual site content (`rw`, `en`, `sw`, `fr`)
 - admin-managed news articles, categories, and journalist user roles
+- per-article reference and related links
 - advertisement management with image/video upload
 - top banner split layout for photo/video ads
 - social media links and site settings via admin panel
@@ -23,6 +24,7 @@ This project supports:
 
 1. Place the project in your web server root, e.g. `c:\xampp\htdocs\kai_news`.
 2. Import the database schema from `database.sql` into MySQL.
+   - For an existing installation, run `migrations/20261027_add_article_references.sql` once to add article-specific reference links.
 3. Update `includes/config.php` if needed:
    - `DB_HOST`
    - `DB_USER`
@@ -75,6 +77,11 @@ The default `admins` record created by `database.sql` is:
 ### Manage news and categories
 - `admin/news-add.php`, `admin/news-edit.php`, `admin/news-list.php`
 - `admin/manage-journalists.php` for journalist users
+
+### AI News Desk
+- Open `admin/ai-news.php` as a superadmin to scan RSS sources and generate bilingual, editor-reviewed story suggestions.
+- AI suggestions are not published automatically; creating a site article and publishing it remain editor actions.
+- See [`AI_NEWS_SETUP.md`](./AI_NEWS_SETUP.md) for OpenAI API key creation, secure Windows/XAMPP configuration, billing notes, manual testing, RSS setup, and Task Scheduler instructions.
 
 ## How to update social media links
 

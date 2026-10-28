@@ -21,6 +21,7 @@ if ($q) {
       . " ORDER BY n.created_at DESC LIMIT $per_page OFFSET $offset"
     )->fetch_all(MYSQLI_ASSOC);
 }
+$show_views = canSeeViews();
 ?>
 <!DOCTYPE html>
 <html lang="<?= $LANG ?>">
@@ -63,7 +64,9 @@ if ($q) {
           <h3 class="card-title"><a href="article.php?id=<?= $n['id'] ?>&lang=<?= $LANG ?>"><?= e(t($n,'title',$LANG)) ?></a></h3>
           <div class="card-meta">
             <span><i class="fa fa-clock"></i> <?= date('d M Y', strtotime($n['created_at'])) ?></span>
+            <?php if ($show_views): ?>
             <span><i class="fa fa-eye"></i> <?= number_format($n['views']) ?></span>
+            <?php endif; ?>
           </div>
         </div>
       </article>

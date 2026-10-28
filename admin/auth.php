@@ -26,7 +26,9 @@ function canDo(string $action): bool {
     $permissions = [
         'journalist' => ['add_news','edit_news'],
         'editor'     => ['add_news','edit_news','delete_news','manage_ads'],
-        'superadmin' => ['add_news','edit_news','delete_news','manage_ads','manage_settings','manage_journalists'],
+        'superadmin' => ['add_news','edit_news','delete_news','manage_ads','manage_settings','manage_journalists','manage_ai_news'],
+        'notifier'   => [],
+        'suspended'  => [],
     ];
     return in_array($action, $permissions[$admin_role] ?? []);
 }
@@ -43,6 +45,8 @@ function adminHeader($page_title) {
     $roleColor = match($admin_role) {
         'superadmin' => '#c0392b',
         'editor'     => '#2980b9',
+        'notifier'   => '#8e44ad',
+        'suspended'  => '#7f8c8d',
         default      => '#27ae60', // journalist
     };
     ?>
@@ -71,6 +75,9 @@ function adminHeader($page_title) {
         <?php if (canDo('edit_news')): ?>
         <a href="news-list.php"><i class="fa fa-newspaper"></i> All News</a>
         <?php endif; ?>
+        <?php if (canDo('manage_ai_news')): ?>
+        <a href="ai-news.php"><i class="fa fa-wand-magic-sparkles"></i> AI News Desk</a>
+        <?php endif; ?>
         <?php if (canDo('manage_ads')): ?>
         <a href="ads.php"><i class="fa fa-ad"></i> Advertisements</a>
         <?php endif; ?>
@@ -87,6 +94,13 @@ function adminHeader($page_title) {
         <?php if (canDo('manage_settings')): ?>
         <a href="settings.php"><i class="fa fa-cog"></i> Settings</a>
         <?php endif; ?>
+        <a href="notifications.php"><i class="fa fa-bell"></i> Notifications
+          <?php if (isset($_SESSION['admin_id'])):
+              $notifCount = getUnreadNotificationCount($_SESSION['admin_id']);
+              if ($notifCount > 0): ?>
+                <span class="notif-badge"><?= $notifCount ?></span>
+          <?php endif; endif; ?>
+        </a>
         <a href="logout.php" class="logout-link"><i class="fa fa-sign-out-alt"></i> Logout</a>
       </nav>
     </aside>
